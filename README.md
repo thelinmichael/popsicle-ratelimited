@@ -1,0 +1,1 @@
+The current purpose of this repository is to provide a way for requests made by Popsicle to react to being rate limited.
