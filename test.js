@@ -1,4 +1,4 @@
-/* global beforeEach, it, describe */
+/* global it, describe */
 
 require('es6-promise').polyfill()
 
@@ -7,33 +7,77 @@ var expect = require('chai').expect
 var nock = require('nock')
 var popsicleRatelimited = require('./')
 
+var BASE_URL = 'https://api.spotify.com'
+var PATH = '/v1/search?type=track&q=beat'
+
 describe('popsicle ratelimited', function () {
-  beforeEach(function () {
-    nock('http://example.com')
-      .persist()
-      .get('/endpoint')
-      .reply(429, 'rate limited')
+  this.timeout(5000)
+
+  it('should retry on rate limit', function (done) {
+
+    nock(BASE_URL)
+      .get(PATH)
+      .once()
+      .reply(429, 'rate limited', { 'Retry-After': 2 })
+
+    nock(BASE_URL)
+      .get(PATH)
+      .once()
+      .reply(200, '{}')
+
+    var ratelimited = popsicleRatelimited(5, popsicleRatelimited.SECOND)
+    var request = popsicle(BASE_URL + PATH).use(ratelimited)
+
+    request.then(function (response) {
+      expect(response.status).to.equal(200)
+      done()
+    }).catch(function (error) {
+      done(error)
+    })
   })
 
-  it('should rate limit api calls', function () {
-    var url = 'http://example.com/endpoint'
-    var ratelimited = popsicleRatelimited()
+  it('should fail if rate limit reset time is higher than timeout', function (done) {
+    nock(BASE_URL)
+      .get(PATH)
+      .once()
+      .reply(429, 'rate limited', { 'Retry-After': 2 })
 
-    function request (obj) {
-      return popsicle(obj).use(ratelimited)
-    }
+    var ratelimited = popsicleRatelimited(1, popsicleRatelimited.SECOND)
+    var request = popsicle(BASE_URL + PATH).use(ratelimited)
 
-    return request(url)
-      .then(function () {
-        return request(url)
-      })
+    request.then(function (response) {
+      done(new Error('Should have thrown an error'))
+    }).catch(function (error) {
+      expect(error.message).to.equal('Rate limited: Blocking time higher than timeout')
+      done()
+    })
   })
 
-  it('provide common short cuts', function () {
-    expect(popsicleRatelimited.SECOND).to.be.a('number')
-    expect(popsicleRatelimited.MINUTE).to.be.a('number')
-    expect(popsicleRatelimited.HOUR).to.be.a('number')
-    expect(popsicleRatelimited.DAY).to.be.a('number')
-    expect(popsicleRatelimited.WEEK).to.be.a('number')
+  it('should keep retrying even if second attempt also returns rate limit', function (done) {
+    nock(BASE_URL)
+      .get(PATH)
+      .once()
+      .reply(429, 'rate limited', { 'Retry-After': 2 })
+
+    nock(BASE_URL)
+      .get(PATH)
+      .once()
+      .reply(429, 'rate limited', { 'Retry-After': 1 })
+
+    nock(BASE_URL)
+      .get(PATH)
+      .once()
+      .reply(200, '{}')
+
+    var ratelimited = popsicleRatelimited(5, popsicleRatelimited.SECOND)
+    var request = popsicle(BASE_URL + PATH).use(ratelimited)
+
+    request.then(function (response) {
+      expect(response.status).to.equal(200)
+      done()
+    }).catch(function (error) {
+      done(error)
+    })
   })
+
 })
