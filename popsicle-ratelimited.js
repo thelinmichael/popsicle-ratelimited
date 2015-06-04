@@ -35,7 +35,6 @@ function popsicleRatelimited (timeout, unit) {
           setTimeout(function () {
             req._promise = null
             req.then(function (secondResponse) {
-              console.log('Returning response')
               resolve(secondResponse)
             }, function (error) {
               reject(error)
