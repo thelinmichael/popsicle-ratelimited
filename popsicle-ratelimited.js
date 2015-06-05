@@ -4,7 +4,7 @@ function popsicleRatelimited (timeout, unit) {
     throw new Error('Timeout not set')
   }
 
-  if (unit === undefined || unit == null) {
+  if (unit === undefined || unit === null) {
     throw new Error('Unit not set')
   }
 
@@ -16,20 +16,19 @@ function popsicleRatelimited (timeout, unit) {
 
         // Req or Response not set. Should never happen.
         if (!res) {
-          reject(new Error('Could not read response'))
+          reject(res.error('Could not read response'))
         }
 
         // Handle rate limit
         if (res.status === StatusCode.RATE_LIMITED) {
 
           var retryAfter = res.get(Headers.RETRY_AFTER)
-
           if (retryAfter === undefined || retryAfter === null) {
-            reject(new Error('Rate limited: Missing ' + Headers.RETRY_AFTER + ' header'))
+            reject(res.error('Rate limited: Missing ' + Headers.RETRY_AFTER + ' header'))
           }
 
           if (retryAfter > _toSeconds(timeout, unit)) {
-            reject(new Error('Rate limited: Blocking time higher than timeout'))
+            reject(res.error('Rate limited: Blocking time higher than timeout'))
           }
 
           setTimeout(function () {
